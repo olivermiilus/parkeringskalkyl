@@ -63,9 +63,28 @@
   th { color:var(--dim); font-weight:500; font-size:12px; } td.n, th.n { text-align:right; white-space:nowrap; }
   tr.etapprubrik td { color:var(--accent); font-weight:600; padding-top:12px; }
   tr.etappsumma td { font-weight:600; }
-  .varning { background:rgba(232,163,61,.1); border:1px solid rgba(232,163,61,.35); color:#f0c27a;
-    border-radius:12px; padding:10px 12px; font-size:14px; margin-top:8px; }
+  .varning { color:#f0c27a; font-size:13px; margin-top:6px; }
   .notis { color:var(--ok); font-size:14px; margin-top:8px; min-height:20px; }
+  /* Minimalt upplägg */
+  .period { color:var(--dim); font-size:15px; margin:2px 0 16px; }
+  .lista { border:1px solid var(--linje); border-radius:16px; overflow:hidden; margin-bottom:24px; }
+  .scen { border-top:1px solid var(--linje); background:var(--kort); }
+  .scen:first-child { border-top:none; }
+  .scen > summary { display:grid; grid-template-columns:1fr auto; grid-template-areas:"namn kr" "diff kr";
+    align-items:center; padding:14px 16px; gap:0 12px; font-weight:400; }
+  .scen > summary::before, .scen[open] > summary::before { content:none; display:none; }
+  .info { color:var(--dim); font-size:13px; margin-top:6px; }
+  .snamn { grid-area:namn; font-size:16px; } .sdiff { grid-area:diff; font-size:13px; color:var(--dim); }
+  .skr { grid-area:kr; font-size:28px; font-weight:700; letter-spacing:-.5px; }
+  .scen.billigast .skr, .scen.billigast .sdiff { color:var(--ok); }
+  .vprick { color:var(--varn); font-size:13px; }
+  .inre { padding:0 16px 14px; }
+  .eta { display:flex; justify-content:space-between; gap:10px; font-size:14px; color:var(--dim); padding:4px 0; }
+  .ber > summary { font-size:14px; color:var(--dim); font-weight:400; margin-top:6px; }
+  .lang { font-size:13px; color:var(--dim); margin:8px 0 0; }
+  .del { border-top:1px solid var(--linje); padding:4px 0; }
+  .del > summary { padding:14px 0; font-size:17px; }
+  .del[open] { padding-bottom:12px; }
 </style>
 </head>
 <body>
@@ -176,6 +195,9 @@ function etappKostnad(plats, fran, till, debitering) {
 }
 
 // --- Varningar ---
+// Varje varning har en kort text (visas i listan) och en lång (visas i beräkningen och i kopian).
+// niva "info" = troligen inget problem (visas diskret), "varning" = kontrollera (visas med ⚠).
+const V = (kort, text = kort, niva = "varning") => ({ kort, text, niva });
 function forbudVarningar(plats, fran, till) {
   const f = plats.forbud, ut = [];
   if (!f || !f.veckodag) return ut;
@@ -186,7 +208,8 @@ function forbudVarningar(plats, fran, till) {
     if ((f.vecka === "udda" && v % 2 === 0) || (f.vecka === "jamna" && v % 2 === 1)) continue;
     const a = d + ff, b = d + (ft > ff ? ft : ft + DAG);
     if (a < till && b > fran)
-      ut.push(`P-förbud på ${plats.kod} ${visaTid(a)}–${visaKlocka(b)} (vecka ${v}) överlappar etappen.`);
+      ut.push(V(`P-förbud på ${plats.kod} ${visaTid(a)}–${visaKlocka(b)}`,
+        `P-förbud på ${plats.kod} ${visaTid(a)}–${visaKlocka(b)} (vecka ${v}) överlappar etappen.`));
   }
   return ut;
 }
@@ -199,17 +222,20 @@ function tidsgransVarning(plats, fran, till) {
   for (let d = Math.floor(fran / DAG) * DAG; d < till; d += DAG)
     if (tidsgransGaller(d)) begransad += Math.max(0, Math.min(till, d + DAG) - Math.max(fran, d));
   const bt = begransad / 60;
-  return `Etappen på ${plats.kod} är ${fmtTim(timmar)} h, längre än tidsgränsen ${plats.tidsgrans} h. ` +
+  const kort = `${fmtTim(timmar)} h på ${plats.kod}, gräns ${plats.tidsgrans} h – ` +
+    (bt === 0 ? "gäller troligen inte i helgen" : bt <= plats.tidsgrans ? "troligen OK" : "kontrollera skylten");
+  const niva = bt <= plats.tidsgrans ? "info" : "varning";
+  return V(kort, `Etappen på ${plats.kod} är ${fmtTim(timmar)} h, längre än tidsgränsen ${plats.tidsgrans} h. ` +
     `Gränsen gäller vardag utom dag före sön- och helgdag, så den kanske inte gäller hela tiden: ` +
     (bt === 0 ? "ingen del av etappen ligger på en dag där gränsen gäller – troligen OK."
-      : `${fmtTim(bt)} h ligger på dagar där gränsen gäller` + (bt <= plats.tidsgrans ? " – troligen OK." : " – kontrollera skylten."));
+      : `${fmtTim(bt)} h ligger på dagar där gränsen gäller` + (bt <= plats.tidsgrans ? " – troligen OK." : " – kontrollera skylten.")), niva);
 }
 function fmtTim(h) { return (Math.round(h * 100) / 100).toString().replace(".", ","); }
 
 // --- Scenario ---
 function beraknaScenario(lage, scen) {
   const start = tillMin(lage.start), slut = tillMin(lage.slut), varningar = [], etapper = [];
-  if (!(slut > start)) varningar.push("Sluttiden måste ligga efter starttiden.");
+  if (!(slut > start)) varningar.push(V("Sluttiden måste ligga efter starttiden."));
   scen.etapper.forEach((e, i) => {
     const plats = lage.platser.find((p) => p.id === e.platsId);
     const fran = i === 0 ? start : tillMin(e.start);
@@ -217,11 +243,11 @@ function beraknaScenario(lage, scen) {
     const till = nasta ? tillMin(nasta.start) : slut;
     if (i > 0) {
       const prev = i === 1 ? start : tillMin(scen.etapper[i - 1].start);
-      if (isNaN(fran)) varningar.push(`Flytt ${i}: tid saknas.`);
-      else if (fran <= start || fran >= slut) varningar.push(`Flytt ${i} (${visaTid(fran)}) ligger utanför start- och sluttiden.`);
-      else if (fran <= prev) varningar.push(`Flytt ${i} (${visaTid(fran)}) ligger före eller samtidigt som föregående etapp.`);
+      if (isNaN(fran)) varningar.push(V(`Flytt ${i}: tid saknas.`));
+      else if (fran <= start || fran >= slut) varningar.push(V(`Flytt ${i} ligger utanför tiden`, `Flytt ${i} (${visaTid(fran)}) ligger utanför start- och sluttiden.`));
+      else if (fran <= prev) varningar.push(V(`Flytt ${i} i fel ordning`, `Flytt ${i} (${visaTid(fran)}) ligger före eller samtidigt som föregående etapp.`));
     }
-    if (!plats) { varningar.push(`Etapp ${i + 1}: platsen finns inte längre.`); return; }
+    if (!plats) { varningar.push(V(`Etapp ${i + 1}: platsen finns inte längre.`)); return; }
     if (!(till > fran)) { etapper.push({ plats, fran, till, segment: [], kostnad: 0, exakt: 0 }); return; }
     const k = etappKostnad(plats, fran, till, lage.debitering);
     varningar.push(...forbudVarningar(plats, fran, k.debiteradTill));
@@ -273,76 +299,91 @@ const kr2 = (n) => n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximum
 const platsNamn = (p) => `${p.kod} ${p.namn}`;
 
 // ---- Hela sidan ----
+// Minimalt upplägg: perioden och scenariona överst, allt som går att ändra ihopfällt längst ner.
+// Vilka hopfällda delar som är öppna sparas, så att de inte stängs när sidan ritas om.
+function oppnaDelar() { return new Set([...document.querySelectorAll("details[open][data-id]")].map((d) => d.dataset.id)); }
+function aterOppna(set) { document.querySelectorAll("details[data-id]").forEach((d) => { if (set.has(d.dataset.id)) d.open = true; }); }
+
 function rita() {
-  const app = document.getElementById("app");
-  app.innerHTML = `
-    <h1>Parkeringskalkyl</h1>
-    <div class="under">Jämför vad helgens parkering kostar. Allt sparas i telefonen.</div>
+  const oppna = oppnaDelar();
+  document.getElementById("app").innerHTML = `
+    <h1>Parkering</h1>
+    <div class="period" id="period"></div>
     <section id="resultat"></section>
 
-    <h2>Tider</h2>
-    <div class="kort">
+    <details class="del" data-id="tider"><summary>Tider</summary>
       <div class="rad staplad">
         <div><label>Start</label><input type="datetime-local" data-tid="start" value="${esc(lage.start)}"></div>
         <div><label>Slut</label><input type="datetime-local" data-tid="slut" value="${esc(lage.slut)}"></div>
       </div>
+    </details>
+
+    <details class="del" data-id="scenarion"><summary>Scenarion</summary>
+      ${lage.scenarion.map(ritaScenarioEditor).join("")}
+    </details>
+
+    <details class="del" data-id="platser"><summary>Platser</summary>
+      ${lage.platser.map(ritaPlatsEditor).join("")}
+      <button class="liten" data-atgard="ny-plats">+ Lägg till plats</button>
+    </details>
+
+    <details class="del" data-id="mer"><summary>Mer</summary>
       <label>Debitering</label>
       <div class="vaxla">
         <button data-deb="minut" class="${lage.debitering === "minut" ? "vald" : ""}">Per minut</button>
         <button data-deb="timme" class="${lage.debitering === "timme" ? "vald" : ""}">Per påbörjad timme</button>
       </div>
-    </div>
-
-    <h2>Scenarion</h2>
-    ${lage.scenarion.map(ritaScenarioEditor).join("")}
-
-    <h2>Parkeringsplatser</h2>
-    ${lage.platser.map(ritaPlatsEditor).join("")}
-    <button class="liten" data-atgard="ny-plats">+ Lägg till plats</button>
-
-    <h2>Övrigt</h2>
-    <div class="knappar">
-      <button class="fara" data-atgard="aterstall">Återställ standard</button>
-      <button data-atgard="tester">Kör testerna</button>
-    </div>
-    <div class="notis" id="testnotis"></div>`;
+      <div class="knappar">
+        <button class="liten" data-atgard="kopiera">Kopiera sammanfattning</button>
+        <button class="liten" data-atgard="tester">Kör testerna</button>
+        <button class="liten fara" data-atgard="aterstall">Återställ standard</button>
+      </div>
+      <div class="notis" id="kopienotis"></div><div class="notis" id="testnotis"></div>
+    </details>`;
   ritaResultat();
+  aterOppna(oppna);
 }
 
-// ---- Resultat överst ----
+// ---- Resultat: en rad per scenario, billigast först ----
 function ritaResultat() {
-  const res = lage.scenarion.map((s) => beraknaScenario(lage, s));
+  const oppna = oppnaDelar();
+  const res = lage.scenarion.map((s, i) => ({ ...beraknaScenario(lage, s), nr: i }));
   const minsta = Math.min(...res.map((r) => r.total));
-  document.getElementById("resultat").innerHTML = `
-    <div class="summor">${res.map((r) => {
-      const billig = r.total === minsta;
-      return `<div class="summa ${billig ? "billigast" : ""}">
-        <div class="namn">${esc(r.scen.namn)}</div>
-        <div class="kr">${kr(r.total)}</div>
-        <span class="tagg">${billig ? "Billigast" : "+" + kr(r.total - minsta)}</span>
-      </div>`;
-    }).join("")}</div>
-    <div class="knappar"><button class="prim" data-atgard="kopiera">Kopiera sammanfattning</button></div>
-    <div class="notis" id="kopienotis"></div>
-    ${res.map(ritaDetaljer).join("")}`;
+  const sorterade = [...res].sort((a, b) => a.total - b.total);
+  document.getElementById("period").textContent =
+    `${visaTid(tillMin(lage.start))} – ${visaTid(tillMin(lage.slut))}` + (lage.debitering === "timme" ? " · per påbörjad timme" : "");
+  document.getElementById("resultat").innerHTML = `<div class="lista">${sorterade.map((r) => {
+    const billig = r.total === minsta;
+    return `<details class="scen ${billig ? "billigast" : ""}" data-id="scen-${r.scen.id}">
+      <summary>
+        <span class="snamn">${esc(r.scen.namn)}${r.varningar.some((v) => v.niva === "varning") ? ' <span class="vprick">⚠</span>' : ""}</span>
+        <span class="skr">${kr(r.total)}</span>
+        <span class="sdiff">${billig ? "billigast" : "+" + kr(r.total - minsta)}</span>
+      </summary>
+      ${ritaDetaljer(r)}
+    </details>`;
+  }).join("")}</div>`;
+  aterOppna(oppna);
 }
 
 function ritaDetaljer(r) {
+  const etapper = r.etapper.map((e) =>
+    `<div class="eta"><span>${esc(e.plats.kod)} · ${visaTid(e.fran)} → ${visaTid(e.till)}</span><span>${kr(e.kostnad)}</span></div>`).join("");
+  const varningar = r.varningar.map((v) => v.niva === "info"
+    ? `<div class="info">${esc(v.kort)}</div>` : `<div class="varning">⚠ ${esc(v.kort)}</div>`).join("");
   const rader = r.etapper.map((e, i) => `
-    <tr class="etapprubrik"><td colspan="5">Etapp ${i + 1}: ${esc(platsNamn(e.plats))}<br>
-      <span style="color:var(--dim);font-weight:400">${visaTid(e.fran)} – ${visaTid(e.till)}${
-        e.debiteradTill && e.debiteradTill !== e.till ? ` (debiteras till ${visaKlocka(e.debiteradTill)})` : ""}</span></td></tr>
+    <tr class="etapprubrik"><td colspan="4">${esc(platsNamn(e.plats))}${
+      e.debiteradTill && e.debiteradTill !== e.till ? ` (debiteras till ${visaKlocka(e.debiteradTill)})` : ""}</td></tr>
     ${(e.segment || []).map((sg) => `<tr>
-      <td>${visaTid(sg.fran)}–${visaKlocka(sg.till)}</td><td>${sg.typ}</td>
-      <td class="n">${fmtTim(sg.timmar)} h</td><td class="n">${sg.pris} kr/h</td><td class="n">${kr2(sg.kostnad)}</td></tr>`).join("")}
-    <tr class="etappsumma"><td colspan="4">Summa etapp ${i + 1} (avrundat)</td><td class="n">${kr(e.kostnad)}</td></tr>`).join("");
-  return `<div class="kort">
-    <details>
-      <summary>${esc(r.scen.namn)} – ${kr(r.total)}</summary>
-      <table><thead><tr><th>Tid</th><th>Typ</th><th class="n">Timmar</th><th class="n">Pris</th><th class="n">Kostnad</th></tr></thead>
-      <tbody>${rader}</tbody></table>
+      <td>${visaTid(sg.fran)}–${visaKlocka(sg.till)}</td><td class="n">${fmtTim(sg.timmar)} h</td>
+      <td class="n">${sg.pris} kr/h</td><td class="n">${kr2(sg.kostnad)}</td></tr>`).join("")}
+    <tr class="etappsumma"><td colspan="3">Avrundat</td><td class="n">${kr(e.kostnad)}</td></tr>`).join("");
+  return `<div class="inre">
+    ${etapper}${varningar}
+    <details data-id="ber-${r.scen.id}" class="ber"><summary>Visa beräkning</summary>
+      <table><tbody>${rader}</tbody></table>
+      ${r.varningar.map((v) => `<p class="lang">${esc(v.text)}</p>`).join("")}
     </details>
-    ${r.varningar.map((v) => `<div class="varning">⚠ ${esc(v)}</div>`).join("")}
   </div>`;
 }
 
@@ -487,7 +528,7 @@ function sammanfattning() {
   for (const r of res) {
     rader.push(`${r.scen.namn}: ${kr(r.total)}${r.total === minsta ? " – billigast" : ` (+${kr(r.total - minsta)})`}`);
     for (const e of r.etapper) rader.push(`  ${e.plats.kod} ${visaTid(e.fran)} – ${visaTid(e.till)}: ${kr(e.kostnad)}`);
-    for (const v of r.varningar) rader.push(`  ⚠ ${v}`);
+    for (const v of r.varningar) rader.push(`  ⚠ ${v.text}`);
   }
   return rader.join("\n");
 }
