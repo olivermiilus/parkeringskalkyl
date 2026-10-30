@@ -4,6 +4,69 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Parkeringskalkyl</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111214">
+<style>
+  /* Mörkt tema, byggt för iPhone först */
+  :root { --bg:#111214; --kort:#1b1d21; --linje:#2c3036; --text:#f2f2f2; --dim:#8d929b;
+          --accent:#e8a33d; --ok:#4cc38a; --varn:#e8a33d; --fel:#e5534b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; background:var(--bg); color:var(--text);
+    font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif; }
+  html,body { overflow-x:hidden; }
+  table { table-layout:auto; } td { overflow-wrap:anywhere; }
+  main { max-width:720px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 16px) 16px 48px; }
+  h1 { font-size:24px; margin:4px 0 2px; } h2 { font-size:13px; letter-spacing:1px; text-transform:uppercase;
+    color:var(--dim); margin:28px 0 10px; }
+  .under { color:var(--dim); font-size:14px; margin-bottom:14px; }
+  .kort { background:var(--kort); border:1px solid var(--linje); border-radius:16px; padding:14px; margin-bottom:12px; }
+  /* Summor överst */
+  .summor { display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:8px; }
+  .summa { background:var(--kort); border:2px solid var(--linje); border-radius:18px; padding:14px; }
+  .summa.billigast { border-color:var(--ok); }
+  .summa { padding:12px; min-width:0; }
+  .summa .namn { font-size:13px; color:var(--dim); min-height:36px; overflow-wrap:anywhere; }
+  .summa .kr { font-size:clamp(24px,7.5vw,36px); font-weight:700; letter-spacing:-.5px; margin:4px 0; white-space:nowrap; }
+  .tagg { display:inline-block; font-size:13px; padding:3px 10px; border-radius:999px; background:#2a2d33; color:var(--dim); }
+  .billigast .tagg { background:rgba(76,195,138,.15); color:var(--ok); font-weight:600; }
+  /* Formulär */
+  label { display:block; font-size:13px; color:var(--dim); margin:10px 0 4px; }
+  input, select { width:100%; font:inherit; font-size:16px; color:var(--text); background:#23262b;
+    border:1px solid var(--linje); border-radius:12px; padding:12px; min-height:48px; -webkit-appearance:none; appearance:none; }
+  input[type=checkbox] { width:24px; min-height:24px; height:24px; padding:0; accent-color:var(--accent); -webkit-appearance:checkbox; appearance:auto; }
+  .rad { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .rad3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  .rad > *, .rad3 > * { min-width:0; }
+  /* På smala skärmar: tider och etapper under varandra */
+  @media (max-width:540px) { .rad.staplad { grid-template-columns:1fr; gap:0; } }
+  button { font:inherit; font-size:16px; border-radius:12px; min-height:48px; padding:0 16px; cursor:pointer;
+    border:1px solid var(--linje); background:#262a30; color:var(--text); }
+  button:active { transform:scale(.98); }
+  button.prim { background:var(--accent); border-color:var(--accent); color:#111; font-weight:600; }
+  button.liten { min-height:40px; padding:0 12px; font-size:14px; }
+  button.fara { color:var(--fel); }
+  .knappar { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .vaxla { display:flex; background:#23262b; border:1px solid var(--linje); border-radius:12px; padding:3px; }
+  .vaxla button { flex:1; border:none; background:transparent; min-height:42px; color:var(--dim); }
+  .vaxla button.vald { background:var(--accent); color:#111; font-weight:600; }
+  /* Etapper */
+  .etapp { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; padding:10px 0; border-top:1px solid var(--linje); }
+  .etapp:first-of-type { border-top:none; }
+  .fran-start { color:var(--dim); font-size:14px; padding:12px 0; }
+  /* Tabeller och varningar */
+  details > summary { cursor:pointer; padding:6px 0; font-weight:600; list-style:none; }
+  details > summary::-webkit-details-marker { display:none; }
+  details > summary::before { content:"▸ "; color:var(--dim); } details[open] > summary::before { content:"▾ "; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin-top:6px; }
+  th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--linje); vertical-align:top; }
+  th { color:var(--dim); font-weight:500; font-size:12px; } td.n, th.n { text-align:right; white-space:nowrap; }
+  tr.etapprubrik td { color:var(--accent); font-weight:600; padding-top:12px; }
+  tr.etappsumma td { font-weight:600; }
+  .varning { background:rgba(232,163,61,.1); border:1px solid rgba(232,163,61,.35); color:#f0c27a;
+    border-radius:12px; padding:10px 12px; font-size:14px; margin-top:8px; }
+  .notis { color:var(--ok); font-size:14px; margin-top:8px; min-height:20px; }
+</style>
 </head>
 <body>
 <main id="app"></main>
@@ -138,7 +201,7 @@ function tidsgransVarning(plats, fran, till) {
   const bt = begransad / 60;
   return `Etappen på ${plats.kod} är ${fmtTim(timmar)} h, längre än tidsgränsen ${plats.tidsgrans} h. ` +
     `Gränsen gäller vardag utom dag före sön- och helgdag, så den kanske inte gäller hela tiden: ` +
-    (bt === 0 ? "ingen del av etappen ligger på en sådan dag – troligen OK."
+    (bt === 0 ? "ingen del av etappen ligger på en dag där gränsen gäller – troligen OK."
       : `${fmtTim(bt)} h ligger på dagar där gränsen gäller` + (bt <= plats.tidsgrans ? " – troligen OK." : " – kontrollera skylten."));
 }
 function fmtTim(h) { return (Math.round(h * 100) / 100).toString().replace(".", ","); }
@@ -192,6 +255,255 @@ function korTester() {
   return ok;
 }
 // ===== MOTOR SLUT =====
+</script>
+<script>
+// ===== GRÄNSSNITT =====
+// Allt nedan ritar sidan och sparar ändringar i localStorage. Beräkningarna finns i MOTOR ovan.
+const LAGRING = "parkeringskalkyl.v1";
+let lage = ladda();
+
+function ladda() {
+  try { const s = JSON.parse(localStorage.getItem(LAGRING)); if (s && s.version === 1) return s; } catch (e) {}
+  return standardLage();
+}
+function spara() { localStorage.setItem(LAGRING, JSON.stringify(lage)); }
+const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const kr = (n) => `${Math.round(n).toLocaleString("sv-SE")} kr`;
+const kr2 = (n) => n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const platsNamn = (p) => `${p.kod} ${p.namn}`;
+
+// ---- Hela sidan ----
+function rita() {
+  const app = document.getElementById("app");
+  app.innerHTML = `
+    <h1>Parkeringskalkyl</h1>
+    <div class="under">Jämför vad helgens parkering kostar. Allt sparas i telefonen.</div>
+    <section id="resultat"></section>
+
+    <h2>Tider</h2>
+    <div class="kort">
+      <div class="rad staplad">
+        <div><label>Start</label><input type="datetime-local" data-tid="start" value="${esc(lage.start)}"></div>
+        <div><label>Slut</label><input type="datetime-local" data-tid="slut" value="${esc(lage.slut)}"></div>
+      </div>
+      <label>Debitering</label>
+      <div class="vaxla">
+        <button data-deb="minut" class="${lage.debitering === "minut" ? "vald" : ""}">Per minut</button>
+        <button data-deb="timme" class="${lage.debitering === "timme" ? "vald" : ""}">Per påbörjad timme</button>
+      </div>
+    </div>
+
+    <h2>Scenarion</h2>
+    ${lage.scenarion.map(ritaScenarioEditor).join("")}
+
+    <h2>Parkeringsplatser</h2>
+    ${lage.platser.map(ritaPlatsEditor).join("")}
+    <button class="liten" data-atgard="ny-plats">+ Lägg till plats</button>
+
+    <h2>Övrigt</h2>
+    <div class="knappar">
+      <button class="fara" data-atgard="aterstall">Återställ standard</button>
+      <button data-atgard="tester">Kör testerna</button>
+    </div>
+    <div class="notis" id="testnotis"></div>`;
+  ritaResultat();
+}
+
+// ---- Resultat överst ----
+function ritaResultat() {
+  const res = lage.scenarion.map((s) => beraknaScenario(lage, s));
+  const minsta = Math.min(...res.map((r) => r.total));
+  document.getElementById("resultat").innerHTML = `
+    <div class="summor">${res.map((r) => {
+      const billig = r.total === minsta;
+      return `<div class="summa ${billig ? "billigast" : ""}">
+        <div class="namn">${esc(r.scen.namn)}</div>
+        <div class="kr">${kr(r.total)}</div>
+        <span class="tagg">${billig ? "Billigast" : "+" + kr(r.total - minsta)}</span>
+      </div>`;
+    }).join("")}</div>
+    <div class="knappar"><button class="prim" data-atgard="kopiera">Kopiera sammanfattning</button></div>
+    <div class="notis" id="kopienotis"></div>
+    ${res.map(ritaDetaljer).join("")}`;
+}
+
+function ritaDetaljer(r) {
+  const rader = r.etapper.map((e, i) => `
+    <tr class="etapprubrik"><td colspan="5">Etapp ${i + 1}: ${esc(platsNamn(e.plats))}<br>
+      <span style="color:var(--dim);font-weight:400">${visaTid(e.fran)} – ${visaTid(e.till)}${
+        e.debiteradTill && e.debiteradTill !== e.till ? ` (debiteras till ${visaKlocka(e.debiteradTill)})` : ""}</span></td></tr>
+    ${(e.segment || []).map((sg) => `<tr>
+      <td>${visaTid(sg.fran)}–${visaKlocka(sg.till)}</td><td>${sg.typ}</td>
+      <td class="n">${fmtTim(sg.timmar)} h</td><td class="n">${sg.pris} kr/h</td><td class="n">${kr2(sg.kostnad)}</td></tr>`).join("")}
+    <tr class="etappsumma"><td colspan="4">Summa etapp ${i + 1} (avrundat)</td><td class="n">${kr(e.kostnad)}</td></tr>`).join("");
+  return `<div class="kort">
+    <details>
+      <summary>${esc(r.scen.namn)} – ${kr(r.total)}</summary>
+      <table><thead><tr><th>Tid</th><th>Typ</th><th class="n">Timmar</th><th class="n">Pris</th><th class="n">Kostnad</th></tr></thead>
+      <tbody>${rader}</tbody></table>
+    </details>
+    ${r.varningar.map((v) => `<div class="varning">⚠ ${esc(v)}</div>`).join("")}
+  </div>`;
+}
+
+// ---- Redigera scenarion ----
+function platsVal(valdId) {
+  return lage.platser.map((p) => `<option value="${esc(p.id)}" ${p.id === valdId ? "selected" : ""}>${esc(platsNamn(p))}</option>`).join("");
+}
+function ritaScenarioEditor(scen, si) {
+  return `<div class="kort">
+    <label>Namn på scenario ${si + 1}</label>
+    <input type="text" data-scen="${si}" data-falt="namn" value="${esc(scen.namn)}">
+    ${scen.etapper.map((e, ei) => `<div class="etapp">
+      <div class="rad staplad">
+        <div><label>${ei === 0 ? "Plats från start" : "Flytta till"}</label>
+          <select data-scen="${si}" data-etapp="${ei}" data-falt="platsId">${platsVal(e.platsId)}</select></div>
+        <div>${ei === 0 ? `<label>Tid</label><div class="fran-start">Vid starttiden</div>`
+          : `<label>Flytt kl.</label><input type="datetime-local" data-scen="${si}" data-etapp="${ei}" data-falt="start" value="${esc(e.start || "")}">`}</div>
+      </div>
+      ${scen.etapper.length > 1 ? `<button class="liten fara" data-atgard="ta-bort-etapp" data-scen="${si}" data-etapp="${ei}" aria-label="Ta bort etapp">✕</button>` : "<span></span>"}
+    </div>`).join("")}
+    <button class="liten" data-atgard="ny-etapp" data-scen="${si}">+ Lägg till flytt</button>
+  </div>`;
+}
+
+// ---- Redigera platser ----
+function ritaPlatsEditor(p, pi) {
+  const f = p.forbud;
+  const falt = (namn, falt, typ = "text", extra = "") =>
+    `<div><label>${namn}</label><input type="${typ}" ${extra} data-plats="${pi}" data-falt="${falt}" value="${esc(p[falt] ?? "")}"></div>`;
+  return `<div class="kort"><details>
+    <summary>${esc(platsNamn(p))} · ${p.dagPris} kr/h dag, ${p.ovrigPris} kr/h övrig tid</summary>
+    <div class="rad">${falt("Kod", "kod")}${falt("Namn", "namn")}</div>
+    <div class="rad3">${falt("Kr/h dagtid", "dagPris", "number", 'inputmode="decimal" step="0.5" min="0"')}
+      ${falt("Dagtid från", "dagFran", "time")}${falt("Dagtid till", "dagTill", "time")}</div>
+    <div class="rad">${falt("Kr/h övrig tid", "ovrigPris", "number", 'inputmode="decimal" step="0.5" min="0"')}
+      ${falt("Tidsgräns (timmar, tomt = ingen)", "tidsgrans", "number", 'inputmode="numeric" min="0"')}</div>
+    <label style="display:flex;gap:10px;align-items:center;color:var(--text)">
+      <input type="checkbox" data-plats="${pi}" data-atgard="forbud-pa" ${f ? "checked" : ""}> P-förbud (t.ex. städning)</label>
+    ${f ? `<div class="rad">
+        <div><label>Veckodag</label><select data-plats="${pi}" data-forbud="veckodag">${
+          [1, 2, 3, 4, 5, 6, 7].map((d) => `<option value="${d}" ${+f.veckodag === d ? "selected" : ""}>${["", "Måndag", "Tisdag", "Onsdag", "Torsdag", "Fredag", "Lördag", "Söndag"][d]}</option>`).join("")}</select></div>
+        <div><label>Veckor (ISO)</label><select data-plats="${pi}" data-forbud="vecka">${
+          [["alla", "Alla veckor"], ["udda", "Udda veckor"], ["jamna", "Jämna veckor"]].map(([v, t]) => `<option value="${v}" ${f.vecka === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+      </div>
+      <div class="rad">
+        <div><label>Förbud från</label><input type="time" data-plats="${pi}" data-forbud="fran" value="${esc(f.fran)}"></div>
+        <div><label>Förbud till</label><input type="time" data-plats="${pi}" data-forbud="till" value="${esc(f.till)}"></div>
+      </div>` : ""}
+    ${falt("Anteckning", "anteckning")}
+    <div class="knappar"><button class="liten fara" data-atgard="ta-bort-plats" data-plats="${pi}">Ta bort platsen</button></div>
+  </details></div>`;
+}
+
+// ---- Händelser ----
+// Värden som skrivs in uppdaterar bara resultatet, så att markören stannar kvar i fältet.
+const NUMMER = ["dagPris", "ovrigPris", "tidsgrans"];
+document.addEventListener("input", (ev) => {
+  const t = ev.target, d = t.dataset;
+  if (d.tid) lage[d.tid] = t.value;
+  else if (d.scen !== undefined && d.etapp === undefined && d.falt) lage.scenarion[d.scen][d.falt] = t.value;
+  else if (d.scen !== undefined && d.etapp !== undefined) lage.scenarion[d.scen].etapper[d.etapp][d.falt] = t.value;
+  else if (d.plats !== undefined && d.falt) {
+    const p = lage.platser[d.plats];
+    if (NUMMER.includes(d.falt)) p[d.falt] = t.value === "" ? (d.falt === "tidsgrans" ? null : 0) : Number(t.value);
+    else p[d.falt] = t.value;
+  } else if (d.plats !== undefined && d.forbud) lage.platser[d.plats].forbud[d.forbud] = d.forbud === "veckodag" ? Number(t.value) : t.value;
+  else return;
+  spara();
+  ritaResultat();
+});
+// När ett fält lämnas ritas hela sidan om (t.ex. nya platsnamn i listorna)
+document.addEventListener("change", (ev) => {
+  const d = ev.target.dataset;
+  if (d.plats !== undefined && (d.falt === "kod" || d.falt === "namn" || NUMMER.includes(d.falt))) rita();
+  if (d.atgard === "forbud-pa") {
+    lage.platser[d.plats].forbud = ev.target.checked ? { veckodag: 2, fran: "09:00", till: "12:00", vecka: "alla" } : null;
+    spara(); rita();
+  }
+});
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  const d = b.dataset;
+  if (d.deb) { lage.debitering = d.deb; spara(); rita(); return; }
+  switch (d.atgard) {
+    case "ny-etapp": {
+      const scen = lage.scenarion[d.scen];
+      scen.etapper.push({ platsId: annanPlats(scen.etapper.at(-1).platsId), start: forslagFlytt(scen) });
+      break;
+    }
+    case "ta-bort-etapp": {
+      const scen = lage.scenarion[d.scen];
+      scen.etapper.splice(+d.etapp, 1);
+      scen.etapper[0].start = null; // första etappen börjar alltid vid starttiden
+      break;
+    }
+    case "ny-plats":
+      lage.platser.push({ id: "p" + Date.now(), kod: "Ny", namn: "Ny plats", dagPris: 0, dagFran: "08:00", dagTill: "22:00",
+        ovrigPris: 0, forbud: null, tidsgrans: null, anteckning: "" });
+      break;
+    case "ta-bort-plats": {
+      const p = lage.platser[d.plats];
+      if (lage.platser.length === 1) { alert("Det måste finnas minst en plats."); return; }
+      const ersattare = lage.platser.find((x) => x.id !== p.id);
+      const anvands = lage.scenarion.reduce((n, s) => n + s.etapper.filter((e) => e.platsId === p.id).length, 0);
+      if (!confirm(`Ta bort ${platsNamn(p)}?` + (anvands ? ` Den används i ${anvands} etapp(er), som byts till ${platsNamn(ersattare)}.` : ""))) return;
+      lage.scenarion.forEach((s) => s.etapper.forEach((e) => { if (e.platsId === p.id) e.platsId = ersattare.id; }));
+      lage.platser.splice(+d.plats, 1);
+      break;
+    }
+    case "aterstall":
+      if (!confirm("Återställa alla platser, tider och scenarion till standard?")) return;
+      lage = standardLage();
+      break;
+    case "kopiera":
+      await kopiera(sammanfattning());
+      return;
+    case "tester": {
+      const ok = korTester();
+      document.getElementById("testnotis").textContent = ok ? "✅ Alla tester passerar (detaljer i konsolen)" : "❌ Något test misslyckades – se konsolen";
+      return;
+    }
+    default: return;
+  }
+  spara(); rita();
+});
+
+// Föreslagen tid för en ny flytt: kl. 08:00 dagen efter föregående etapp, annars mitt emellan
+function forslagFlytt(scen) {
+  const start = tillMin(lage.start), slut = tillMin(lage.slut);
+  const prev = scen.etapper.length > 1 ? tillMin(scen.etapper.at(-1).start) : start;
+  let t = Math.floor(prev / DAG) * DAG + DAG + 480;
+  if (!(t > prev && t < slut)) t = prev + Math.round((slut - prev) / 2 / 10) * 10;
+  return minTillInput(t);
+}
+function annanPlats(id) { return (lage.platser.find((p) => p.id !== id) || lage.platser[0]).id; }
+
+// ---- Kopiera som text ----
+function sammanfattning() {
+  const res = lage.scenarion.map((s) => beraknaScenario(lage, s)), minsta = Math.min(...res.map((r) => r.total));
+  const rader = [`Parkering ${visaTid(tillMin(lage.start))} – ${visaTid(tillMin(lage.slut))} (${lage.debitering === "minut" ? "per minut" : "per påbörjad timme"})`, ""];
+  for (const r of res) {
+    rader.push(`${r.scen.namn}: ${kr(r.total)}${r.total === minsta ? " – billigast" : ` (+${kr(r.total - minsta)})`}`);
+    for (const e of r.etapper) rader.push(`  ${e.plats.kod} ${visaTid(e.fran)} – ${visaTid(e.till)}: ${kr(e.kostnad)}`);
+    for (const v of r.varningar) rader.push(`  ⚠ ${v}`);
+  }
+  return rader.join("\n");
+}
+async function kopiera(text) {
+  const notis = document.getElementById("kopienotis");
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) { // reserv för äldre webbläsare och sidor utan https
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy"); ta.remove();
+  }
+  notis.textContent = "Kopierat!";
+  setTimeout(() => (notis.textContent = ""), 2000);
+}
+
+window.korTester = korTester; // så att testerna kan köras från konsolen
+rita();
 </script>
 </body>
 </html>
